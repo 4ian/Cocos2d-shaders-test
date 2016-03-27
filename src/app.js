@@ -1,12 +1,12 @@
-var hardcodeFrameUniform = true;
-
 var isHTML5 = function() {
     return typeof document !== "undefined";
 }
 
-var makeTilingShader = function() {
+var makeShader = function() {
     var shader = new cc.GLProgram();
 
+    // First gotcha: the matrix to use in the shader is different in
+    // HTML5 and Cocos2d-x.
     var projectionMatrix = isHTML5() ?
         "(CC_PMatrix * CC_MVMatrix)" :
         "CC_PMatrix";
@@ -53,28 +53,14 @@ var makeTilingShader = function() {
 var HelloWorldLayer = cc.Layer.extend({
     sprite:null,
     ctor:function () {
-        //////////////////////////////
-        // 1. super init first
         this._super();
-
-        /////////////////////////////
-        // 2. add a menu item with "X" image, which is clicked to quit the program
-        //    you may modify it.
-        // ask the window size
         var size = cc.winSize;
 
-        /////////////////////////////
-        // 3. add your codes below...
-        // add a label shows "Hello World"
-        // create and initialize a label
         var helloLabel = new cc.LabelTTF("Hello World", "Arial", 38);
-        // position the label on the center of the screen
         helloLabel.x = size.width / 2;
         helloLabel.y = size.height / 2 + 200;
-        // add the label as a child to this layer
         this.addChild(helloLabel, 5);
 
-        // add "HelloWorld" splash screen"
         this.sprite = new cc.Sprite(res.HelloWorld_png);
         this.sprite.attr({
             x: size.width / 2,
@@ -82,10 +68,10 @@ var HelloWorldLayer = cc.Layer.extend({
         });
         this.addChild(this.sprite, 0);
 
-        this._shader = makeTilingShader();
-        this._shader.retain();
+        //Add the shader to the sprite
+        this._shader = makeShader();
+        this._shader.retain(); //2nd gotcha: retain should be called for Cocos2d-x
         this._valueUniform = this._shader.getUniformLocationForName('u_value');
-
         this.sprite.setShaderProgram(this._shader);
 
         this.scheduleUpdate();
@@ -94,8 +80,17 @@ var HelloWorldLayer = cc.Layer.extend({
     },
     update: function() {
         this._shader.use();
-        this._shader.setUniformLocationWith1f(this._valueUniform, Math.random());
+        // 3rd gotcha: shader uniforms should be updated using getGLProgramState with Cocos2d-x.
+        // Calling setUniformLocationWithXXX only works with HTML5.
+        if (this.sprite.getGLProgramState) {
+            this.sprite.getGLProgramState().setUniformFloat("u_value", Math.random());
+        } else {
+            this._shader.setUniformLocationWith1f(this._valueUniform, Math.random());
+        }
     }
+
+    // Note: this._shader.release(); should be called somewhere if you change the
+    // scene or destroy the sprite.
 });
 
 var HelloWorldScene = cc.Scene.extend({
